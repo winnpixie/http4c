@@ -6,18 +6,18 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int configure_server(int server_fd, int port) {
+int configure_server(int srvsockfd, int srvport) {
   struct sockaddr_in srv_addr;
 
   srv_addr.sin_family = AF_INET;
-  srv_addr.sin_port = htons(port);
+  srv_addr.sin_port = htons(srvport);
   srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-  if (bind(server_fd, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) == -1) {
+  if (bind(srvsockfd, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) == -1) {
     return 1;
   }
 
-  if (listen(server_fd, 5) == -1) {
+  if (listen(srvsockfd, 5) == -1) {
     return 1;
   }
 
@@ -27,53 +27,51 @@ int configure_server(int server_fd, int port) {
 // TODO: String split method.
 char **strspl(const char *str, const char delim);
 
-int process_client(int client_fd) {
-  printf("client connected.\n");
+int process_client(int clsockfd) {
+  printf("Client connected.\n");
 
   size_t bufsize = sizeof(char) * 1024;
   char *buf = malloc(bufsize);
-  recv(client_fd, buf, bufsize, 0);
+  recv(clsockfd, buf, bufsize, 0);
 
-  char *rbuf = strdup(buf);
+  char *reqmethod = strtok(buf, " ");
+  if (strcmp(reqmethod, "GET") == 0) {
+    printf("Method: %s\n", reqmethod);
 
-  char *method = strtok(buf, " ");
-  if (strcmp(method, "GET") == 0) {
-    printf("method : %s\n", method);
-
-    char *path = strtok(buf + 4, " ");
-    if (strlen(path) == 1) {
-      path = "/index.html";
+    char *reqpath = strtok(buf + 4, " ");
+    if (strlen(reqpath) == 1) {
+      reqpath = "/index.html";
     }
 
-    printf("path : %s\n", path);
-    FILE *fd = fopen(path + 1, "r");
-    if (fd != NULL) {
-      fseek(fd, 0, SEEK_END);
-      size_t fsize = sizeof(char) * ftell(fd);
-      rewind(fd);
-      char *fbuf = malloc(fsize);
-      fread(fbuf, sizeof(char), fsize, fd);
+    printf("Path: %s\n", reqpath);
+    FILE *reqfile = fopen(reqpath + 1, "r");
+    if (reqfile == NULL) {
+      char *resp = "HTTP/1.1 404 Not Found\nContent-Type: text/html\nConnection: close\n\n404.";
+      send(clsockfd, resp, strlen(resp), 0);
 
-      char *response =
-          "HTTP/1.1 200 OK\nContent-Type: text/html\nConnection: close\n\n";
-      send(client_fd, response, strlen(response), 0);
-      send(client_fd, fbuf, fsize, 0);
-
-      free(fbuf);
-      fclose(fd);
+      printf("404 - '%s'\n", reqpath);
     } else {
-      char response[] = "HTTP/1.1 404 Not Found\nContent-Type: "
-                    "text/html\nConnection: close\n\nNF";
-      send(client_fd, response, strlen(response), 0);
+      fseek(reqfile, 0, SEEK_END);
+      size_t filesize = sizeof(char) * ftell(reqfile);
+      rewind(reqfile);
 
-      printf("NO FILE FOUND '%s'\n", path);
+      char *filebuf = malloc(filesize);
+      fread(filebuf, sizeof(char), filesize, reqfile);
+
+      fclose(reqfile);
+
+      char *resphead = "HTTP/1.1 200 OK\nContent-Type: text/html\nConnection: close\n\n";
+      send(clsockfd, resphead, strlen(resphead), 0);
+      send(clsockfd, filebuf, filesize, 0);
+
+      free(filebuf);
     }
   } else {
     printf("Malformed request.\n");
   }
 
   free(buf);
-  shutdown(client_fd, SHUT_RDWR);
+  shutdown(clsockfd, SHUT_RDWR);
   return 0;
 }
 
@@ -93,6 +91,8 @@ int main(int argc, char **argv) {
     printf("Error preparing server.\n");
     return EXIT_FAILURE;
   }
+
+  printf("http server started on port %d\n", port);
 
   while (true) {
     struct sockaddr client_addr;
