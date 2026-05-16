@@ -5,26 +5,28 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int state = HTTP_STOPPED;
+#define BACK_LOG 64
 
-int prepare_server(const int srvsockfd, const int srvport)
+int server_state = HTTP_STOPPED;
+
+int prepare_server(const int fd_server_sock, const int port)
 {
-	struct sockaddr_in srvaddr;
+	struct sockaddr_in server_addr;
 	
-	srvaddr.sin_family = AF_INET;
-	srvaddr.sin_port = htons(srvport);
-	srvaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	int reuseaddropt = 1;
-	setsockopt(srvsockfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddropt, sizeof(reuseaddropt));
+	int reuse_addr_opt = 1;
+	setsockopt(fd_server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse_addr_opt, sizeof(reuse_addr_opt));
 
-	if (bind(srvsockfd, (struct sockaddr *)&srvaddr, sizeof(srvaddr)) == -1)
+	if (bind(fd_server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
 	{
 		perror("Error - bind()");
 		return -1;
 	}
 
-	if (listen(srvsockfd, 5) == -1)
+	if (listen(fd_server_sock, BACK_LOG) == -1)
 	{
 		perror("Error - listen()");
 		return -2;
@@ -35,45 +37,45 @@ int prepare_server(const int srvsockfd, const int srvport)
 
 int create_server(const int port)
 {
-	int srvsockfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (srvsockfd == -1)
+	int fd_server_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (fd_server_sock == -1)
 	{
 		perror("Error - socket()");
 		return -1;
 	}
 
-	if (prepare_server(srvsockfd, port) < 0) {
+	if (prepare_server(fd_server_sock, port) < 0) {
 		perror("Error - configuring");
 		return -2;
 	}
 
-	return srvsockfd;
+	return fd_server_sock;
 }
 
-void start_server(const int srvsockfd)
+void start_server(const int fd_server_sock)
 {
-	state = HTTP_RUNNING;
+	server_state = HTTP_RUNNING;
 
-	while (state == HTTP_RUNNING) {
-		struct sockaddr_in claddr;
-		socklen_t claddrlen = sizeof(struct sockaddr_in);
+	while (server_state == HTTP_RUNNING) {
+		struct sockaddr_in client_addr;
+		socklen_t sz_client_addr = sizeof(struct sockaddr_in);
 
-		int clsockfd = accept(srvsockfd, (struct sockaddr *)&claddr, &claddrlen);
-		if (clsockfd != -1) {
-			handle_client(clsockfd);
+		int fd_client_sock = accept(fd_server_sock, (struct sockaddr *)&client_addr, &sz_client_addr);
+		if (fd_client_sock != -1) {
+			handle_client(fd_client_sock);
 		}
 	}
 
-	stop_server(srvsockfd);
+	stop_server(fd_server_sock);
 }
 
-void stop_server(const int srvsockfd)
+void stop_server(const int fd_server_sock)
 {
-	shutdown(srvsockfd, SHUT_RDWR);
-	close(srvsockfd);
+	shutdown(fd_server_sock, SHUT_RDWR);
+	close(fd_server_sock);
 }
 
-void set_server_state(const int newstate)
+void set_server_state(const int new_state)
 {
-	state = newstate;
+	server_state = new_state;
 }

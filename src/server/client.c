@@ -5,37 +5,39 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-void write_headers(const int clsockfd, const char *status, const char *contenttype, const long contentlen)
+#define BUF_SIZE 65536
+#define MAX_HEAD 512
+
+void write_headers(const int fd_client_sock, const char *http_status, const char *content_type, const long content_length)
 {
-	int maxhead = 256;
-	char head[maxhead];
+	char head[MAX_HEAD];
 	
-	int headlen = snprintf(head, maxhead,
-		"HTTP/1.1 %s\nContent-Type: %s\nContent-Length: %ld\nConnection: close\n\n",
-		status, contenttype, contentlen
+	int len = snprintf(head, MAX_HEAD,
+		"HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %ld\r\nConnection: close\r\n\r\n",
+		http_status, content_type, content_length
 	);
   
-	if (headlen == -1 || headlen >= maxhead) {
+	if (len == -1 || len >= MAX_HEAD) {
 		return;
 	};
 
-	send(clsockfd, head, headlen, 0);
+	send(fd_client_sock, head, len, 0);
 }
 
-void finish_client(const int clsockfd)
+void finish_client(const int fd_client_sock)
 {
-	shutdown(clsockfd, SHUT_RDWR);
-	close(clsockfd);
+	shutdown(fd_client_sock, SHUT_RDWR);
+	close(fd_client_sock);
 }
 
-int is_valid_http_method(const char *method)
+int is_valid_http_method(const char *verb)
 {
-	if (method == NULL)
+	if (verb == NULL)
 	{
 		return 0;
 	}
 
-	if (strcmp(method, "GET") == 0 || strcmp(method, "POST") == 0)
+	if (strcmp(verb, "GET") == 0 || strcmp(verb, "POST") == 0)
 	{
 		return 1;
 	}
@@ -43,88 +45,87 @@ int is_valid_http_method(const char *method)
 	return 0;
 }
 
-void handle_get(const int clsockfd, const char *reqpath)
+void handle_get(const int fd_client_sock, const char *req_path)
 {
-	if (reqpath == NULL || strcmp(reqpath, "/") == 0)
+	if (req_path == NULL || strcmp(req_path, "/") == 0)
 	{
-		reqpath = "/index.html";
+		req_path = "/index.html";
 	}
 
-	FILE *reqfile = fopen(reqpath + 1, "rb");
-	if (reqfile == NULL) {
-		write_headers(clsockfd, "404 Not Found", "text/plain", 4);
-		send(clsockfd, "404.", 4, 0);
+	FILE *fp_req_file = fopen(req_path + 1, "rb");
+	if (fp_req_file == NULL) {
+		write_headers(fd_client_sock, "404 Not Found", "text/plain", 4);
+		send(fd_client_sock, "404.", 4, 0);
 
 		return;
 	}
 
-	if (fseek(reqfile, 0L, SEEK_END) == 0)
+	if (fseek(fp_req_file, 0L, SEEK_END) == 0)
 	{
-		long filesize = ftell(reqfile);
-		rewind(reqfile);
+		long file_size = ftell(fp_req_file);
+		rewind(fp_req_file);
 
-		if (filesize == 0)
+		if (file_size == 0)
 		{
-			write_headers(clsockfd, "200 OK", "text/plain", 0L);
-		} else if (filesize > 0)
+			write_headers(fd_client_sock, "200 OK", "text/plain", 0L);
+		} else if (file_size > 0)
 		{
-			ssize_t respsize = sizeof(char) * filesize;
-			char *respbuf = malloc(respsize);
+			ssize_t resp_size = sizeof(char) * file_size;
+			char *resp_buf = malloc(resp_size);
 			
-			if (respbuf == NULL)
+			if (resp_buf == NULL)
 			{
-				write_headers(clsockfd, "500 Internal Server Error", "text/plain", 4);
-				send(clsockfd, "500.", 4, 0);
+				write_headers(fd_client_sock, "500 Internal Server Error", "text/plain", 4);
+				send(fd_client_sock, "500.", 4, 0);
 			} else
 			{
-				size_t respread = fread(respbuf, sizeof(char), filesize, reqfile);
-				if (respread == filesize)
+				size_t resp_read = fread(resp_buf, sizeof(char), file_size, fp_req_file);
+				if (resp_read == file_size)
 				{
-					write_headers(clsockfd, "200 OK", "text/html", filesize);
-					send(clsockfd, respbuf, filesize, 0);
+					write_headers(fd_client_sock, "200 OK", "text/html", file_size);
+					send(fd_client_sock, resp_buf, file_size, 0);
 				}
 
-				free(respbuf);
+				free(resp_buf);
 			}
 		} else
 		{
-			write_headers(clsockfd, "500 Internal Server Error", "text/plain", 4L);
-			send(clsockfd, "500.", 4, 0);
+			write_headers(fd_client_sock, "500 Internal Server Error", "text/plain", 4L);
+			send(fd_client_sock, "500.", 4, 0);
 		}
 	}
 		
-	fclose(reqfile);
+	fclose(fp_req_file);
 }
 
-void handle_client(const int clsockfd)
+void handle_client(const int fd_client_sock)
 {
-	int bufsize = 8192;
-	char reqbuf[bufsize];
+	char req_buf[BUF_SIZE];
 
-	ssize_t reqread = recv(clsockfd, reqbuf, bufsize - 1, 0);
-	if (reqread < 1)
+	ssize_t req_read = recv(fd_client_sock, req_buf, BUF_SIZE - 1, 0);
+	if (req_read < 1)
 	{
-		finish_client(clsockfd);
+		finish_client(fd_client_sock);
 
 		return;
 	}
 
-	reqbuf[reqread] = '\0';
+	req_buf[req_read] = '\0';
 
-	printf("%s\n", reqbuf);
+	printf("%s\n", req_buf);
 
-	char *tokptr = NULL;
-	char *reqmethod = strtok_r(reqbuf, " ", &tokptr);
-	char *reqpath = strtok_r(NULL, " ", &tokptr);
+	char *p_next_token = NULL;
+	char *req_method = strtok_r(req_buf, " ", &p_next_token);
+	char *req_path = strtok_r(NULL, " ", &p_next_token);
 	
-	if (is_valid_http_method(reqmethod))
+	if (is_valid_http_method(req_method))
 	{
-		handle_get(clsockfd, reqpath);
+		handle_get(fd_client_sock, req_path);
 	} else
 	{
-		write_headers(clsockfd, "400 Bad Request", "text/plain", 4L);
-		send(clsockfd, "400.", 4, 0);
+		write_headers(fd_client_sock, "400 Bad Request", "text/plain", 4L);
+		send(fd_client_sock, "400.", 4, 0);
 	}
 
-	finish_client(clsockfd);
+	finish_client(fd_client_sock);
 }

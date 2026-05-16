@@ -1,13 +1,13 @@
 #ifndef HTTPSRV_H
 #define HTTPSRV_H
 
-int create_server(const int);
+int create_server(const int port);
 
-void start_server(const int);
+void start_server(const int fd_server_sock);
 
-void stop_server(const int);
+void stop_server(const int fd_server_sock);
 
-void set_server_state(const int);
+void set_server_state(const int new_state);
 
 #define HTTP_RUNNING 1
 #define HTTP_STOPPED 0
