@@ -1,5 +1,5 @@
-#ifndef _HTTPSRV_H
-#define _HTTPSRV_H
+#ifndef HTTPSRV_H
+#define HTTPSRV_H
 
 int create_server(const int);
 
@@ -13,4 +13,4 @@ void set_server_state(const int);
 #define HTTP_STOPPED 0
 #define HTTP_ERROR -1
 
-#endif // _HTTPSRV_H
+#endif // HTTPSRV_H

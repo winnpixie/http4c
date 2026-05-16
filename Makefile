@@ -1,9 +1,9 @@
 all: server client
 
 server:
-	@mkdir test-server
-	cc -O2 -x c -o test-server/server server/*.c
+	@mkdir -p test-server
+	cc -O2 -x c -o test-server/server src/server/*.c
 
 client:
-	@mkdir test-client
-	cc -O2 -x c -o test-client/client client/*.c
+	@mkdir -p test-client
+	cc -O2 -x c -o test-client/client src/client/*.c
