@@ -1,6 +1,7 @@
-# Clang
-*.out
+# C
 *.o
+*.out
+*.exe
 
 # VS Code
 .vscode/
