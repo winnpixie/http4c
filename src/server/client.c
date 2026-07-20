@@ -1,4 +1,5 @@
 #include "client.h"
+#include "utilities.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,7 +83,7 @@ void handle_get(const int fd_client_sock, const char *req_path)
 				size_t resp_read = fread(resp_buf, sizeof(char), file_size, fp_req_file);
 				if (resp_read == file_size)
 				{
-					write_headers(fd_client_sock, "200 OK", "text/html", file_size);
+					write_headers(fd_client_sock, "200 OK", get_content_type(req_path), file_size);
 					send(fd_client_sock, resp_buf, file_size, 0);
 				}
 
