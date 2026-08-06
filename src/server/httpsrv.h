@@ -3,9 +3,9 @@
 
 int create_server(const int port);
 
-void start_server(const int fd_server_sock);
+void start_server(const int server_sock);
 
-void stop_server(const int fd_server_sock);
+void stop_server(const int server_sock);
 
 void set_server_state(const int new_state);
 
