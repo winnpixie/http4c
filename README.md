@@ -1,3 +1,3 @@
-# httpc
+# http4c
 
-Personal project to act as the base for a separate project.
+Test code to act as the base for another project.
