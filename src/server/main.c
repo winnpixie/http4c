@@ -22,6 +22,12 @@ int main(int argc, char *argv[])
 		srvport = atoi(argv[1]);
 	}
 
+	if (srvport < 1 || srvport > 65535)
+	{
+		printf("Port not in allowed range (1-65535)\n");
+		return EXIT_FAILURE;
+	}
+
 	int srvsockfd = create_server(srvport);
 	if (srvsockfd < 0)
 	{
@@ -48,7 +54,7 @@ int main(int argc, char *argv[])
 
 	while (getchar() != 'x')
 	{
-		// busy wait
+		// wait for user input
 	}
 	printf("Stop requested\n");
 

@@ -11,12 +11,13 @@ int server_state = HTTP_STOPPED;
 
 int prepare_server(const int fd_server_sock, const int port)
 {
-	struct sockaddr_in server_addr;
+	struct sockaddr_in server_addr
+		= {
+			.sin_family = AF_INET,
+			.sin_port = htons(port),
+			.sin_addr.s_addr = htonl(INADDR_ANY)
+		};
 	
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(port);
-	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
 	int reuse_addr_opt = 1;
 	setsockopt(fd_server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse_addr_opt, sizeof(reuse_addr_opt));
 
@@ -24,6 +25,14 @@ int prepare_server(const int fd_server_sock, const int port)
 	{
 		perror("Error - bind()");
 		return -1;
+	}
+
+	char addr_str[INET_ADDRSTRLEN];
+	if (inet_ntop(AF_INET, &server_addr.sin_addr, addr_str, INET_ADDRSTRLEN) == NULL)
+	{
+		printf("bind(ERR_ADDR:%d)\n", port);
+	} else {
+		printf("bind(%s:%d)\n", addr_str, port);
 	}
 
 	if (listen(fd_server_sock, BACK_LOG) == -1)
@@ -62,6 +71,14 @@ void start_server(const int fd_server_sock)
 
 		int fd_client_sock = accept(fd_server_sock, (struct sockaddr *)&client_addr, &sz_client_addr);
 		if (fd_client_sock != -1) {
+			char addr_str[INET_ADDRSTRLEN];
+			if (inet_ntop(AF_INET, &client_addr.sin_addr, addr_str, INET_ADDRSTRLEN) == NULL)
+			{
+				printf("Request from ERR_ADDR:%d\n", ntohs(client_addr.sin_port));
+			} else {
+				printf("Request from %s:%d\n", addr_str, ntohs(client_addr.sin_port));
+			}
+
 			handle_client(fd_client_sock);
 		}
 	}
